@@ -1,6 +1,6 @@
-# 7-Segment-Digital-Clock-V2
+# 7-Segment-Digital-Display (fork)
 
-This is a new version of a 7 segment digital clocks that uses WS2812B LED's. Instructions how to build can be found in the YouTube video.
+This is a new version of a 7 segment digital display based on a 7 segment display that uses WS2812B LED's.
 
 ## License
 
@@ -21,7 +21,6 @@ This is a new version of a 7 segment digital clocks that uses WS2812B LED's. Ins
 
 Most files can be printed with 0.3 setting and low infill.
 
-
 ## Schema
 
 Connect D6 from the ESP8266 through a 10 ohm resistor to the data pin of the LED strip. Don't power the LED strip from the ESP board but use a Micro USB breakout board en connect the 5V to the LED strip.
@@ -40,10 +39,6 @@ Afterwards if you want to change something to the html files, just unzip with:
 
 `gunzip -r ./data/`
 
-## YouTube video
-
-<a href="https://youtu.be/tGhew6kTAwc" target="_blank"><img src="https://img.youtube.com/vi/tGhew6kTAwc/0.jpg" 
-alt="Click to view: 7 Segment Digital Clock V2" width="500" border="1" /></a>
 
 
 
