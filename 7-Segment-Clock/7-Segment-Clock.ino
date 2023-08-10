@@ -1,6 +1,6 @@
-#include <Wire.h>
-#include <RtcDS3231.h>                        // Include RTC library by Makuna: https://github.com/Makuna/Rtc
+#include <NTPClient.h>
 #include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <FastLED.h>
@@ -19,17 +19,17 @@
 #endif
   
 #if defined(WIFIMODE) && (WIFIMODE == 1 || WIFIMODE == 2)
-  #include "Credentials.h"                    // Create this file in the same directory as the .ino file and add your credentials (#define SID YOURSSID and on the second line #define PW YOURPASSWORD)
+  #include "credentials.h"                    // Create this file in the same directory as the .ino file and add your credentials (#define SID YOURSSID and on the second line #define PW YOURPASSWORD)
   const char *ssid = SID;
   const char *password = PW;
 #endif
 
-RtcDS3231<TwoWire> Rtc(Wire);
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdateServer;
 CRGB LEDs[NUM_LEDS];
 
 // Settings
+String now = "0";
 unsigned long prevTime = 0;
 byte r_val = 255;
 byte g_val = 0;
@@ -38,7 +38,7 @@ bool dotsOn = true;
 byte brightness = 255;
 float temperatureCorrection = -3.0;
 byte temperatureSymbol = 12;                  // 12=Celcius, 13=Fahrenheit check 'numbers'
-byte clockMode = 0;                           // Clock modes: 0=Clock, 1=Countdown, 2=Temperature, 3=Scoreboard
+byte displayMode = 0;                           // Clock modes: 0=Clock, 1=Countdown, 2=Temperature, 3=Scoreboard
 unsigned long countdownMilliSeconds;
 unsigned long endCountDownMillis;
 byte hourFormat = 24;                         // Change this to 12 if you want default 12 hours format instead of 24               
@@ -65,31 +65,22 @@ long numbers[] = {
   0b111000111111111000000,  // [13] F(ahrenheit)
 };
 
+WiFiUDP ntpUDP;
+
+// By default 'pool.ntp.org' is used with 60 seconds update interval and
+// no offset
+NTPClient timeClient(ntpUDP);
+
+// You can specify the time server pool and the offset, (in seconds)
+// additionally you can specify the update interval (in milliseconds).
+// NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
+
 void setup() {
   pinMode(COUNTDOWN_OUTPUT, OUTPUT);
   Serial.begin(115200); 
   delay(200);
 
-  // RTC DS3231 Setup
-  Rtc.Begin();    
-  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-
-  if (!Rtc.IsDateTimeValid()) {
-      if (Rtc.LastError() != 0) {
-          // we have a communications error see https://www.arduino.cc/en/Reference/WireEndTransmission for what the number means
-          Serial.print("RTC communications error = ");
-          Serial.println(Rtc.LastError());
-      } else {
-          // Common Causes:
-          //    1) first time you ran and the device wasn't running yet
-          //    2) the battery on the device is low or even missing
-          Serial.println("RTC lost confidence in the DateTime!");
-          // following line sets the RTC to the date & time this sketch was compiled
-          // it will also reset the valid flag internally unless the Rtc device is
-          // having an issue
-          Rtc.SetDateTime(compiled);
-      }
-  }
+  timeClient.begin();
 
   WiFi.setSleepMode(WIFI_NONE_SLEEP);  
 
@@ -156,10 +147,8 @@ void setup() {
     char d[12];
     char t[9];
     datearg.toCharArray(d, 12);
-    timearg.toCharArray(t, 9);
-    RtcDateTime compiled = RtcDateTime(d, t);
-    Rtc.SetDateTime(compiled);   
-    clockMode = 0;     
+    timearg.toCharArray(t, 9); 
+    displayMode = 0;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });
 
@@ -177,14 +166,14 @@ void setup() {
     countdownColor = CRGB(cd_r_val, cd_g_val, cd_b_val); 
     endCountDownMillis = millis() + countdownMilliSeconds;
     allBlank(); 
-    clockMode = 1;     
+    displayMode = 1;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });
 
   server.on("/temperature", HTTP_POST, []() {   
     temperatureCorrection = server.arg("correction").toInt();
     temperatureSymbol = server.arg("symbol").toInt();
-    clockMode = 2;     
+    displayMode = 2;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });  
 
@@ -193,18 +182,18 @@ void setup() {
     scoreboardRight = server.arg("right").toInt();
     scoreboardColorLeft = CRGB(server.arg("rl").toInt(),server.arg("gl").toInt(),server.arg("bl").toInt());
     scoreboardColorRight = CRGB(server.arg("rr").toInt(),server.arg("gr").toInt(),server.arg("br").toInt());
-    clockMode = 3;     
+    displayMode = 3;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });  
 
   server.on("/hourformat", HTTP_POST, []() {   
     hourFormat = server.arg("hourformat").toInt();
-    clockMode = 0;     
+    displayMode = 0;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   }); 
 
   server.on("/clock", HTTP_POST, []() {       
-    clockMode = 0;     
+    displayMode = 0;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });  
   
@@ -234,13 +223,13 @@ void loop(){
   if (currentMillis - prevTime >= 1000) {
     prevTime = currentMillis;
 
-    if (clockMode == 0) {
-      updateClock();
-    } else if (clockMode == 1) {
+    if (displayMode == 0) {
+      //updateClock();
+    } else if (displayMode == 1) {
       updateCountdown();
-    } else if (clockMode == 2) {
-      updateTemperature();      
-    } else if (clockMode == 3) {
+    } else if (displayMode == 2) {
+      //updateTemperature();      
+    } else if (displayMode == 3) {
       updateScoreboard();            
     }
 
@@ -294,37 +283,44 @@ void allBlank() {
   FastLED.show();
 }
 
-void updateClock() {  
-  RtcDateTime now = Rtc.GetDateTime();
-  // printDateTime(now);    
-
-  int hour = now.Hour();
-  int mins = now.Minute();
-  int secs = now.Second();
-
-  if (hourFormat == 12 && hour > 12)
-    hour = hour - 12;
-  
-  byte h1 = hour / 10;
-  byte h2 = hour % 10;
-  byte m1 = mins / 10;
-  byte m2 = mins % 10;  
-  byte s1 = secs / 10;
-  byte s2 = secs % 10;
-  
-  CRGB color = CRGB(r_val, g_val, b_val);
-
-  if (h1 > 0)
-    displayNumber(h1,3,color);
-  else 
-    displayNumber(10,3,color);  // Blank
-    
-  displayNumber(h2,2,color);
-  displayNumber(m1,1,color);
-  displayNumber(m2,0,color); 
-
-  displayDots(color);  
-}
+//
+//void updateClock() {  
+//
+//  //change to NTP
+//  
+//  //RtcDateTime now = Rtc.GetDateTime();
+//  now = timeClient.getFormattedTime();
+//  Serial.println(now);
+//  // printDateTime(now);    
+//
+//  int hour = now.Hour();
+//  int mins = now.Minute();
+//  int secs = now.Second();
+//
+//  if (hourFormat == 12 && hour > 12)
+//    hour = hour - 12;
+//  
+//  byte h1 = hour / 10;
+//  byte h2 = hour % 10;
+//  byte m1 = mins / 10;
+//  byte m2 = mins % 10;  
+//  byte s1 = secs / 10;
+//  byte s2 = secs % 10;
+//  
+//  CRGB color = CRGB(r_val, g_val, b_val);
+//
+//  if (h1 > 0)
+//    displayNumber(h1,3,color);
+//  else 
+//    displayNumber(10,3,color);  // Blank
+//    
+//  displayNumber(h2,2,color);
+//  displayNumber(m1,1,color);
+//  displayNumber(m2,0,color); 
+//
+//  //displayDots(color);
+//  hideDots();
+//}
 
 void updateCountdown() {
 
@@ -376,7 +372,8 @@ void updateCountdown() {
     displayNumber(s2,0,color);  
   }
 
-  displayDots(color);  
+  hideDots();
+  //displayDots(color);
 
   if (hours <= 0 && remMinutes <= 0 && remSeconds <= 0) {
     Serial.println("Countdown timer ended.");
@@ -417,27 +414,30 @@ void hideDots() {
   LEDs[43] = CRGB::Black;
 }
 
-void updateTemperature() {
-  RtcTemperature temp = Rtc.GetTemperature();
-  float ftemp = temp.AsFloatDegC();
-  float ctemp = ftemp + temperatureCorrection;
-  Serial.print("Sensor temp: ");
-  Serial.print(ftemp);
-  Serial.print(" Corrected: ");
-  Serial.println(ctemp);
-
-  if (temperatureSymbol == 13)
-    ctemp = (ctemp * 1.8000) + 32;
-
-  byte t1 = int(ctemp) / 10;
-  byte t2 = int(ctemp) % 10;
-  CRGB color = CRGB(r_val, g_val, b_val);
-  displayNumber(t1,3,color);
-  displayNumber(t2,2,color);
-  displayNumber(11,1,color);
-  displayNumber(temperatureSymbol,0,color);
-  hideDots();
-}
+//void updateTemperature() {
+//
+//  //change to different source
+//  
+//  //RtcTemperature temp = Rtc.GetTemperature();
+//  float ftemp = temp.AsFloatDegC();
+//  float ctemp = ftemp + temperatureCorrection;
+//  Serial.print("Sensor temp: ");
+//  Serial.print(ftemp);
+//  Serial.print(" Corrected: ");
+//  Serial.println(ctemp);
+//
+//  if (temperatureSymbol == 13)
+//    ctemp = (ctemp * 1.8000) + 32;
+//
+//  byte t1 = int(ctemp) / 10;
+//  byte t2 = int(ctemp) % 10;
+//  CRGB color = CRGB(r_val, g_val, b_val);
+//  displayNumber(t1,3,color);
+//  displayNumber(t2,2,color);
+//  displayNumber(11,1,color);
+//  displayNumber(temperatureSymbol,0,color);
+//  hideDots();
+//}
 
 void updateScoreboard() {
   byte sl1 = scoreboardLeft / 10;
@@ -450,20 +450,4 @@ void updateScoreboard() {
   displayNumber(sr1,1,scoreboardColorRight);
   displayNumber(sr2,0,scoreboardColorRight);
   hideDots();
-}
-
-void printDateTime(const RtcDateTime& dt)
-{
-    char datestring[20];
-
-    snprintf_P(datestring, 
-            countof(datestring),
-            PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-            dt.Month(),
-            dt.Day(),
-            dt.Year(),
-            dt.Hour(),
-            dt.Minute(),
-            dt.Second() );
-    Serial.println(datestring);
 }
