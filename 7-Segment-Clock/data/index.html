@@ -7,13 +7,13 @@
     <script type="text/javascript" src="./js/moment-with-locales.js"></script>
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/jquery.minicolors.css">
-    <title>7 Segment Clock</title>
+    <title>7 Segment Number</title>
 </head>
 
 <body>
 
     <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
-        <a class="navbar-brand" href="./index.html">7 Segment Clock</a>
+        <a class="navbar-brand" href="./index.html">7 Segment Number</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse"
             aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -23,7 +23,7 @@
                 <li class="nav-item active">
                     <a class="nav-link" href="./index.html">Home <span class="sr-only">(current)</span></a>
                 </li>
-                <li class="nav-item">
+                <!--<li class="nav-item">
                     <a class="nav-link" href="./datetime.html">Set Date/Time</a>
                 </li>
                 <li class="nav-item">
@@ -34,7 +34,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="./temperature.html">Temperature</a>
-                </li>
+                </li>-->
         </div>
     </nav>
 
@@ -42,6 +42,37 @@
         <div class="col-12">
 
             <div class="card">
+                <div class="card-body">
+
+<form>
+                        <label>Set Number</label>
+
+                        <div class="form-row">
+                            <div class="col input-group mb-3">
+                                <input type="text" class="form-control" value="20" id="numberVal">
+                               
+                            </div>
+                        </div>
+
+                        <div>
+                            
+                            <div>
+                                <button type="button" class="btn btn-primary" onclick="setnumber()">Submit</button>
+                            </div>
+
+                            <div id="validNrs" style="display: none;">
+                                <br />
+                                <div class="alert alert-danger" role="alert">
+                                    Please enter valid values!
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+            <br />            
+			<div class="card">
                 <div class="card-body">
 
                     <div class="form-group">
@@ -65,7 +96,7 @@
                 </div>
             </div>
             <br />
-            <div class="card">
+            <!--<div class="card">
                 <div class="card-body">
 
                     <div class="form-group">
@@ -79,7 +110,7 @@
                         Format</button>
 
                 </div>
-            </div>
+            </div>-->
         </div>
     </div>
 
