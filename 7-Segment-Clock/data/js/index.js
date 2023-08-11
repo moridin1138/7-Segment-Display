@@ -21,6 +21,13 @@ $(document).ready(function () {
         });
     }
 
+    if ($('#numberColor').length) {
+        $('#numberColor').minicolors({
+            inline: $('#numberColor').attr('data-inline') === 'true',
+            theme: 'bootstrap'
+        });
+    }
+
 
     if ($('#currentDateTime').length) {
         window.setInterval(showDateTime, 900);
@@ -36,6 +43,11 @@ function showDateTime() {
 function setColor() {
     var color = $('#inline').minicolors('rgbObject');
     console.log(color);
+	//var color = {
+	//	rl: color.r,
+	//	gl: color.g,
+	//	bl: color.b
+	//}
     $.post("/color", color);
 }
 
@@ -43,6 +55,18 @@ function setBrightness() {
     var brightness = $('#rangeBrightness').val();
     console.log(brightness);
     $.post("/brightness", { brightness: brightness });
+}
+
+function setnumber() {
+    var numberVal = $('#numberVal').val();
+	if (isNaN(numberVal)) {
+        $('#validNrs').show();
+        return;
+    } else {
+        $('#validNrs').hide();
+    }
+    console.log(numberVal);
+    $.post("/number", { numberVal: numberVal });
 }
 
 function setDateTime() {
@@ -111,6 +135,24 @@ function showScoreboard() {
     };
 
     $.post("/scoreboard", scoreboard);
+}
+
+function upNum() {
+    var left = $('#numberVal').val();
+    if (left < 99 && !isNaN(left)) {
+        var newval = parseInt(left) + 1;
+        $('#numberVal').val(newval);
+        showScoreboard();
+    }
+}
+
+function downNum() {
+    var left = $('#numberVal').val();
+    if (left > 0 && !isNaN(left)) {
+        var newval = parseInt(left) - 1;
+        $('#numberVal').val(newval);
+        showScoreboard();
+    }
 }
 
 function upleft() {
