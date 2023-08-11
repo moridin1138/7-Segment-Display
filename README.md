@@ -1,6 +1,6 @@
 # 7-Segment-Digital-Display (fork)
 
-This is a new version of a 7 segment digital display based on a 7 segment display that uses WS2812B LED's.
+This is a new version of a 7 segment digital display based on a 7 segment display that uses WS2812B LED's.  It no longer functions as a clock or anything else (though this may change in the future).  For now it's only to display a number which can be changed via the web interface.
 
 ## License
 
