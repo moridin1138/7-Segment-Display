@@ -6,7 +6,7 @@
 #include <FastLED.h>
 #include <FS.h>                               // Please read the instructions on http://arduino.esp8266.com/Arduino/versions/2.3.0/doc/filesystem.html#uploading-files-to-file-system
 #define countof(a) (sizeof(a) / sizeof(a[0]))
-#define NUM_LEDS 86                           // Total of 86 LED's     
+#define NUM_LEDS 252                           // Total of 86 LED's     
 #define DATA_PIN D6                           // Change this if you are using another type of ESP board than a WeMos D1 Mini
 #define MILLI_AMPS 2400 
 #define COUNTDOWN_OUTPUT D5
@@ -14,7 +14,7 @@
 #define WIFIMODE 2                            // 0 = Only Soft Access Point, 1 = Only connect to local WiFi network with UN/PW, 2 = Both
 
 #if defined(WIFIMODE) && (WIFIMODE == 0 || WIFIMODE == 2)
-  const char* APssid = "CLOCK_AP";        
+  const char* APssid = "7SEG_AP";        
   const char* APpassword = "1234567890";  
 #endif
   
@@ -30,23 +30,13 @@ CRGB LEDs[NUM_LEDS];
 
 // Settings
 String now = "0";
+int numbVal = 100000;
 unsigned long prevTime = 0;
 byte r_val = 255;
 byte g_val = 0;
 byte b_val = 0;
 bool dotsOn = true;
 byte brightness = 255;
-float temperatureCorrection = -3.0;
-byte temperatureSymbol = 12;                  // 12=Celcius, 13=Fahrenheit check 'numbers'
-byte displayMode = 0;                           // Clock modes: 0=Clock, 1=Countdown, 2=Temperature, 3=Scoreboard
-unsigned long countdownMilliSeconds;
-unsigned long endCountDownMillis;
-byte hourFormat = 24;                         // Change this to 12 if you want default 12 hours format instead of 24               
-CRGB countdownColor = CRGB::Green;
-byte scoreboardLeft = 0;
-byte scoreboardRight = 0;
-CRGB scoreboardColorLeft = CRGB::Green;
-CRGB scoreboardColorRight = CRGB::Red;
 CRGB alternateColor = CRGB::Black; 
 long numbers[] = {
   0b000111111111111111111,  // [0] 0
@@ -130,25 +120,13 @@ void setup() {
   httpUpdateServer.setup(&server);
 
   // Handlers
-  server.on("/color", HTTP_POST, []() {    
+  server.on("/color", HTTP_POST, []() {
+    Serial.println(server.arg("r").toInt());    
+    Serial.println(server.arg("g").toInt());    
+    Serial.println(server.arg("b").toInt());    
     r_val = server.arg("r").toInt();
     g_val = server.arg("g").toInt();
     b_val = server.arg("b").toInt();
-    server.send(200, "text/json", "{\"result\":\"ok\"}");
-  });
-
-  server.on("/setdate", HTTP_POST, []() { 
-    // Sample input: date = "Dec 06 2009", time = "12:34:56"
-    // Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
-    String datearg = server.arg("date");
-    String timearg = server.arg("time");
-    Serial.println(datearg);
-    Serial.println(timearg);    
-    char d[12];
-    char t[9];
-    datearg.toCharArray(d, 12);
-    timearg.toCharArray(t, 9); 
-    displayMode = 0;     
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });
 
@@ -157,46 +135,12 @@ void setup() {
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });
   
-  server.on("/countdown", HTTP_POST, []() {    
-    countdownMilliSeconds = server.arg("ms").toInt();     
-    byte cd_r_val = server.arg("r").toInt();
-    byte cd_g_val = server.arg("g").toInt();
-    byte cd_b_val = server.arg("b").toInt();
-    digitalWrite(COUNTDOWN_OUTPUT, LOW);
-    countdownColor = CRGB(cd_r_val, cd_g_val, cd_b_val); 
-    endCountDownMillis = millis() + countdownMilliSeconds;
-    allBlank(); 
-    displayMode = 1;     
+  server.on("/number", HTTP_POST, []() {    
+    numbVal = server.arg("numberVal").toInt(); 
+    writeValToFile(numbVal);
     server.send(200, "text/json", "{\"result\":\"ok\"}");
   });
 
-  server.on("/temperature", HTTP_POST, []() {   
-    temperatureCorrection = server.arg("correction").toInt();
-    temperatureSymbol = server.arg("symbol").toInt();
-    displayMode = 2;     
-    server.send(200, "text/json", "{\"result\":\"ok\"}");
-  });  
-
-  server.on("/scoreboard", HTTP_POST, []() {   
-    scoreboardLeft = server.arg("left").toInt();
-    scoreboardRight = server.arg("right").toInt();
-    scoreboardColorLeft = CRGB(server.arg("rl").toInt(),server.arg("gl").toInt(),server.arg("bl").toInt());
-    scoreboardColorRight = CRGB(server.arg("rr").toInt(),server.arg("gr").toInt(),server.arg("br").toInt());
-    displayMode = 3;     
-    server.send(200, "text/json", "{\"result\":\"ok\"}");
-  });  
-
-  server.on("/hourformat", HTTP_POST, []() {   
-    hourFormat = server.arg("hourformat").toInt();
-    displayMode = 0;     
-    server.send(200, "text/json", "{\"result\":\"ok\"}");
-  }); 
-
-  server.on("/clock", HTTP_POST, []() {       
-    displayMode = 0;     
-    server.send(200, "text/json", "{\"result\":\"ok\"}");
-  });  
-  
   // Before uploading the files with the "ESP8266 Sketch Data Upload" tool, zip the files with the command "gzip -r ./data/" (on Windows I do this with a Git Bash)
   // *.gz files are automatically unpacked and served from your ESP (so you don't need to create a handler for each file).
   server.serveStatic("/", SPIFFS, "/", "max-age=86400");
@@ -211,8 +155,24 @@ void setup() {
     Serial.printf("FS File: %s, size: %s\n", fileName.c_str(), String(fileSize).c_str());
   }
   Serial.println(); 
+
+  File f = SPIFFS.open("numval.txt", "r");
+  if (!f) {
+    Serial.println("Count file open failed on read.");
+  } else {
+    while(f.available()) {
+      //Lets read line by line from the file
+      String line = f.readStringUntil('\n');
+      numbVal = line.toInt();
+      Serial.print("Read ");
+      Serial.print(numbVal);
+      Serial.println(" fromfile");
+      break; //if left in, we'll just read the first line then break out of the while.
+    } 
+    f.close();
+  }
   
-  digitalWrite(COUNTDOWN_OUTPUT, LOW);
+  
 }
 
 void loop(){
@@ -223,19 +183,26 @@ void loop(){
   if (currentMillis - prevTime >= 1000) {
     prevTime = currentMillis;
 
-    if (displayMode == 0) {
-      //updateClock();
-    } else if (displayMode == 1) {
-      updateCountdown();
-    } else if (displayMode == 2) {
-      //updateTemperature();      
-    } else if (displayMode == 3) {
-      updateScoreboard();            
-    }
-
+    updateNumber();
+  
+    CRGB color = CRGB(r_val, g_val, b_val);
     FastLED.setBrightness(brightness);
     FastLED.show();
   }   
+}
+
+void writeValToFile(int inputval){
+
+  File f = SPIFFS.open("numval.txt", "w");
+  if (!f) {
+    Serial.println("Count file open failed on update.");
+  } else {
+    f.println(inputval); 
+    f.close();
+    Serial.print("Added: ");
+    Serial.println(inputval);
+  }
+  f.close();
 }
 
 void displayNumber(byte number, byte segment, CRGB color) {
@@ -252,6 +219,7 @@ void displayNumber(byte number, byte segment, CRGB color) {
       __ __ __       __ __ __           __ __ __       _5 _4 _3   
 
    */
+
  
   // segment from left to right: 3, 2, 1, 0
   byte startindex = 0;
@@ -260,17 +228,23 @@ void displayNumber(byte number, byte segment, CRGB color) {
       startindex = 0;
       break;
     case 1:
-      startindex = 21;
+      startindex = 42;
       break;
     case 2:
-      startindex = 44;
+      startindex = 84;
       break;
     case 3:
-      startindex = 65;
-      break;    
+      startindex = 126;
+      break;   
+    case 4:
+      startindex = 168;
+      break;     
+    case 5:
+      startindex = 210;
+      break;  
   }
 
-  for (byte i=0; i<21; i++){
+  for (byte i=0; i<42; i++){
     yield();
     LEDs[i + startindex] = ((numbers[number] & 1 << i) == 1 << i) ? color : alternateColor;
   } 
@@ -284,170 +258,37 @@ void allBlank() {
 }
 
 //
-//void updateClock() {  
-//
-//  //change to NTP
-//  
-//  //RtcDateTime now = Rtc.GetDateTime();
-//  now = timeClient.getFormattedTime();
-//  Serial.println(now);
-//  // printDateTime(now);    
-//
-//  int hour = now.Hour();
-//  int mins = now.Minute();
-//  int secs = now.Second();
-//
-//  if (hourFormat == 12 && hour > 12)
-//    hour = hour - 12;
-//  
-//  byte h1 = hour / 10;
-//  byte h2 = hour % 10;
-//  byte m1 = mins / 10;
-//  byte m2 = mins % 10;  
-//  byte s1 = secs / 10;
-//  byte s2 = secs % 10;
-//  
-//  CRGB color = CRGB(r_val, g_val, b_val);
-//
-//  if (h1 > 0)
-//    displayNumber(h1,3,color);
-//  else 
-//    displayNumber(10,3,color);  // Blank
-//    
-//  displayNumber(h2,2,color);
-//  displayNumber(m1,1,color);
-//  displayNumber(m2,0,color); 
-//
-//  //displayDots(color);
-//  hideDots();
-//}
+void updateNumber() {  
 
-void updateCountdown() {
+  Serial.print("Number:");
+  Serial.println(numbVal);
+  CRGB color = CRGB(r_val, g_val, b_val);
 
-  if (countdownMilliSeconds == 0 && endCountDownMillis == 0) 
-    return;
-    
-  unsigned long restMillis = endCountDownMillis - millis();
-  unsigned long hours   = ((restMillis / 1000) / 60) / 60;
-  unsigned long minutes = (restMillis / 1000) / 60;
-  unsigned long seconds = restMillis / 1000;
-  int remSeconds = seconds - (minutes * 60);
-  int remMinutes = minutes - (hours * 60); 
+  byte n1 = (numbVal / 100000) % 10;
+  byte n2 = (numbVal / 10000) % 10;
+  byte n3 = (numbVal / 1000) % 10;  
+  byte n4 = (numbVal / 100) % 10;
+  byte n5 = (numbVal / 10) % 10;
+  byte n6 = numbVal % 10;
+
+  Serial.print("Broken Number:");
+  Serial.print(n1);
+  Serial.print(" - ");
+  Serial.print(n2);
+  Serial.print(" - ");
+  Serial.print(n3);
+  Serial.print(" - ");
+  Serial.print(n4);
+  Serial.print(" - ");
+  Serial.print(n5);
+  Serial.print(" - ");
+  Serial.println(n6);
+
+  displayNumber(n1,5,color);
+  displayNumber(n2,4,color);
+  displayNumber(n3,3,color); 
+  displayNumber(n4,2,color);
+  displayNumber(n5,1,color);
+  displayNumber(n6,0,color); 
   
-  Serial.print(restMillis);
-  Serial.print(" ");
-  Serial.print(hours);
-  Serial.print(" ");
-  Serial.print(minutes);
-  Serial.print(" ");
-  Serial.print(seconds);
-  Serial.print(" | ");
-  Serial.print(remMinutes);
-  Serial.print(" ");
-  Serial.println(remSeconds);
-
-  byte h1 = hours / 10;
-  byte h2 = hours % 10;
-  byte m1 = remMinutes / 10;
-  byte m2 = remMinutes % 10;  
-  byte s1 = remSeconds / 10;
-  byte s2 = remSeconds % 10;
-
-  CRGB color = countdownColor;
-  if (restMillis <= 60000) {
-    color = CRGB::Red;
-  }
-
-  if (hours > 0) {
-    // hh:mm
-    displayNumber(h1,3,color); 
-    displayNumber(h2,2,color);
-    displayNumber(m1,1,color);
-    displayNumber(m2,0,color);  
-  } else {
-    // mm:ss   
-    displayNumber(m1,3,color);
-    displayNumber(m2,2,color);
-    displayNumber(s1,1,color);
-    displayNumber(s2,0,color);  
-  }
-
-  hideDots();
-  //displayDots(color);
-
-  if (hours <= 0 && remMinutes <= 0 && remSeconds <= 0) {
-    Serial.println("Countdown timer ended.");
-    //endCountdown();
-    countdownMilliSeconds = 0;
-    endCountDownMillis = 0;
-    digitalWrite(COUNTDOWN_OUTPUT, HIGH);
-    return;
-  }  
-}
-
-void endCountdown() {
-  allBlank();
-  for (int i=0; i<NUM_LEDS; i++) {
-    if (i>0)
-      LEDs[i-1] = CRGB::Black;
-    
-    LEDs[i] = CRGB::Red;
-    FastLED.show();
-    delay(25);
-  }  
-}
-
-void displayDots(CRGB color) {
-  if (dotsOn) {
-    LEDs[42] = color;
-    LEDs[43] = color;
-  } else {
-    LEDs[42] = CRGB::Black;
-    LEDs[43] = CRGB::Black;
-  }
-
-  dotsOn = !dotsOn;  
-}
-
-void hideDots() {
-  LEDs[42] = CRGB::Black;
-  LEDs[43] = CRGB::Black;
-}
-
-//void updateTemperature() {
-//
-//  //change to different source
-//  
-//  //RtcTemperature temp = Rtc.GetTemperature();
-//  float ftemp = temp.AsFloatDegC();
-//  float ctemp = ftemp + temperatureCorrection;
-//  Serial.print("Sensor temp: ");
-//  Serial.print(ftemp);
-//  Serial.print(" Corrected: ");
-//  Serial.println(ctemp);
-//
-//  if (temperatureSymbol == 13)
-//    ctemp = (ctemp * 1.8000) + 32;
-//
-//  byte t1 = int(ctemp) / 10;
-//  byte t2 = int(ctemp) % 10;
-//  CRGB color = CRGB(r_val, g_val, b_val);
-//  displayNumber(t1,3,color);
-//  displayNumber(t2,2,color);
-//  displayNumber(11,1,color);
-//  displayNumber(temperatureSymbol,0,color);
-//  hideDots();
-//}
-
-void updateScoreboard() {
-  byte sl1 = scoreboardLeft / 10;
-  byte sl2 = scoreboardLeft % 10;
-  byte sr1 = scoreboardRight / 10;
-  byte sr2 = scoreboardRight % 10;
-
-  displayNumber(sl1,3,scoreboardColorLeft);
-  displayNumber(sl2,2,scoreboardColorLeft);
-  displayNumber(sr1,1,scoreboardColorRight);
-  displayNumber(sr2,0,scoreboardColorRight);
-  hideDots();
 }
