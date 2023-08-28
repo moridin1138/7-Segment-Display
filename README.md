@@ -18,13 +18,24 @@ It uses the 7 segment display web code from the project this one was forked from
 |5V 2.5A power supply           | 1x    |
 |WS2812B LED Strip 60 LED's per meter     | 2x    |
 
-## 3D Printing
+## 3D Printing Design Files
 
-Most files can be printed with 0.3 setting and low infill.
+It is recommended that the 3D printed files use 100% infill an 0.2mm layer height. (These files are a work in progress)
+
+The pixel svg is ideally laser cut with 6447 light diffusing acrylic.  If not, 3D print it using a white or translucent filament.
 
 ## Schema
 
 Connect D6 from the ESP8266 through a 10 ohm resistor to the data pin of the LED strip. Don't power the LED strip from the ESP board but use a Micro USB breakout board en connect the 5V to the LED strip.
+
+The pixels are as follows:
+ 1
+6 2
+ 7
+5 3
+ 4
+
+D6 should go to the D-IN of pixel 1. The arrows should go clockwise, and the middle pixel (7) is oriented from left to right. 
 
 ## Arduino code
 
