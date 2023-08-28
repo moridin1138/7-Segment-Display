@@ -1,7 +1,7 @@
 # 7-Segment-Digital-Display (fork)
 
-This is a new version of a 7 segment digital display based on a 7 segment display that uses WS2812B LED's.  It no longer functions as a clock or anything else (though this may change in the future).  For now it's only to display a number which can be changed via the web interface.
-It uses the 7 segment display web code from the project this one was forked from, but also merged with code from <a href="[http://creativecommons.org/licenses/by-nc-sa/4.0/](https://github.com/UnexpectedMaker/Neo7Segment)">Unexpected Maker's 7 segment project</a>.  
+This is a new version of a 7 segment digital display based on a 7 segment display that uses WS2812B LED's.  It no longer functions as a clock or anything else (though this may change in the future).  For now it's only to display a number which can be changed via the web interface.<br />
+It uses the 7 segment display web code from the project this one was forked from, but also merged with code from Unexpected Maker's 7 segment project. https://github.com/UnexpectedMaker/Neo7Segment
 
 ## License
 
